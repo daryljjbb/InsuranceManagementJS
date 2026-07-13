@@ -1,6 +1,35 @@
+/* ============================
+   Custom Theme Colors
+   ============================ */
+
+/* Root-level CSS variables */
 :root {
-  --brand-blue: #7993e9;
-  --brand-green: #10b981;
-  --brand-orange: #f97316;
-  --brand-gray: #64748b;
+  --brand-blue: #2563eb;      /* Vibrant blue */
+  --brand-green: #10b981;     /* Emerald */
+  --brand-orange: #f97316;    /* Bright orange */
+  --brand-purple: #7c3aed;    /* Deep purple */
+  --brand-gray: #64748b;      /* Slate gray */
+  --brand-red: #ef4444;       /* Soft red */
+}
+
+/* Custom button class */
+.btn-brand {
+  background-color: var(--brand-blue);
+  color: white;
+  font-weight: 600;
+}
+
+.btn-brand:hover {
+  background-color: #1d4ed8;
+  color: white;
+}
+
+/* Card enhancements */
+.card-brand {
+  border-left: 5px solid var(--brand-blue);
+}
+
+/* Table row hover */
+.table-hover tbody tr:hover {
+  background-color: rgba(37, 99, 235, 0.08);
 }
