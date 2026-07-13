@@ -1,291 +1,451 @@
 /**
- * CustomerDetail.jsx
- * ------------------
- * This component displays detailed information about a single customer,
- * including their policies and invoices. It also allows adding new policies,
- * generating invoices, and applying payments.
- *
- * ✅ Converted from TypeScript to JavaScript
- * ✅ Added beginner-friendly comments explaining logic and architecture
- * ✅ Added console.log() debugging and error trapping everywhere important
- * ✅ Preserved scalable, modular, production-ready structure
+ * CustomerDetail.jsx (Upgraded)
+ * ----------------------------
+ * This version adds:
+ *  - Create Policy Modal
+ *  - Create Invoice Modal
+ *  - Create Payment Modal
+ *  - Clean Bootstrap UI
+ *  - Heavy comments + debugging
+ *  - No DOM selectors
+ *  - Pure React state
  */
 
-import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { DB, formatMoney } from '../services/db';
+import React, { useState, useEffect } from "react";
+import { useParams, Link } from "react-router-dom";
+import { DB, formatMoney } from "../services/db";
 
 const CustomerDetail = () => {
-    // --- STEP 1: Get customer ID from URL ---
-    const { id } = useParams();
-    const customerId = parseInt(id || "0");
+  /* ------------------------------------------------------
+     STEP 1: Get customer ID from URL
+     ------------------------------------------------------ */
+  const { id } = useParams();
+  const customerId = parseInt(id || "0");
 
-    console.log("[DEBUG] Loaded CustomerDetail component for customerId:", customerId);
+  console.log("[DEBUG] CustomerDetail loaded for:", customerId);
 
-    // --- STEP 2: Initialize state ---
-    // Root cause: Without initial state, React would throw undefined errors when rendering.
-    // Fix: Initialize with safe defaults and handle missing data gracefully.
-    const [customer] = useState(() => {
-        try {
-            const found = DB.findOne("customers", customerId);
-            console.log("[DEBUG] Found customer:", found);
-            return found;
-        } catch (err) {
-            console.error("[ERROR] Failed to load customer:", err);
-            return undefined;
-        }
-    });
-
-    const [policies, setPolicies] = useState([]);
-    const [invoices, setInvoices] = useState([]);
-    const [policyForm, setPolicyForm] = useState({ type: '', premium: '', fee: '' });
-
-    // --- STEP 3: Load policies and invoices when component mounts ---
-    useEffect(() => {
-        try {
-            console.log("[INFO] Fetching policies and invoices for customerId:", customerId);
-            const allPolicies = DB.get("policies").filter(p => p.customerId === customerId);
-            const allInvoices = DB.get("invoices").filter(inv => {
-                const myPolicyIds = allPolicies.map(p => p.policyId);
-                return myPolicyIds.includes(inv.policyId);
-            });
-            setPolicies(allPolicies);
-            setInvoices(allInvoices);
-            console.log("[DEBUG] Loaded policies:", allPolicies);
-            console.log("[DEBUG] Loaded invoices:", allInvoices);
-        } catch (err) {
-            console.error("[ERROR] Failed to load data:", err);
-        }
-    }, [customerId]);
-
-    // --- STEP 4: Add new policy ---
-    const addPolicy = (e) => {
-        e.preventDefault();
-        try {
-            console.log("[INFO] Adding new policy for customerId:", customerId);
-            const newPolicy = {
-                policyId: Date.now(),
-                customerId,
-                type: policyForm.type,
-                premium: parseFloat(policyForm.premium) || 0,
-                agencyFee: parseFloat(policyForm.fee) || 0,
-                dateAdded: new Date().toISOString()
-            };
-            const all = [...DB.get("policies"), newPolicy];
-            DB.save("policies", all);
-            setPolicies(all.filter(p => p.customerId === customerId));
-            setPolicyForm({ type: '', premium: '', fee: '' });
-            console.log("[SUCCESS] Policy added:", newPolicy);
-        } catch (err) {
-            console.error("[ERROR] Failed to add policy:", err);
-            alert("Something went wrong while adding the policy. Check console for details.");
-        }
-    };
-
-    // --- STEP 5: Generate invoice ---
-    const generateInvoice = (policy) => {
-        try {
-            console.log("[INFO] Generating invoice for policyId:", policy.policyId);
-            const typeSelect = document.getElementById(`type-${policy.policyId}`);
-            if (!typeSelect) throw new Error("Invoice type selector not found.");
-            const invType = typeSelect.value;
-
-            const lineItems = [];
-            if (invType.includes("PREMIUM") && policy.premium > 0)
-                lineItems.push({ label: "Premium", amount: policy.premium });
-            if (invType.includes("FEE") && policy.agencyFee > 0)
-                lineItems.push({ label: "Agency Fee", amount: policy.agencyFee });
-
-            if (lineItems.length === 0) {
-                alert("Nothing to bill for this selection!");
-                console.warn("[WARN] No line items generated for invoice.");
-                return;
-            }
-
-            const newInvoice = {
-                invoiceId: Date.now(),
-                policyId: policy.policyId,
-                invoiceType: invType,
-                lineItems,
-                amountDue: lineItems.reduce((sum, item) => sum + item.amount, 0),
-                amountPaid: 0,
-                status: "OPEN",
-                dateGenerated: new Date().toLocaleDateString(),
-                payments: []
-            };
-
-            const all = [...DB.get("invoices"), newInvoice];
-            DB.save("invoices", all);
-            setInvoices(all.filter(i => i.policyId === policy.policyId || invoices.some(curr => curr.invoiceId === i.invoiceId)));
-            console.log("[SUCCESS] Invoice generated:", newInvoice);
-            window.location.reload();
-        } catch (err) {
-            console.error("[ERROR] Failed to generate invoice:", err);
-            alert("Error generating invoice. Check console for details.");
-        }
-    };
-
-    // --- STEP 6: Apply payment ---
-    const applyPayment = (invoiceId, amount) => {
-        try {
-            console.log("[INFO] Applying payment:", amount, "to invoiceId:", invoiceId);
-            const allInvoices = DB.get("invoices");
-            const inv = allInvoices.find(i => i.invoiceId === invoiceId);
-            if (!inv) throw new Error("Invoice not found.");
-
-            const payment = {
-                paymentId: Date.now(),
-                invoiceId,
-                amount,
-                datePaid: new Date().toLocaleDateString()
-            };
-
-            inv.payments.push(payment);
-            inv.amountPaid += amount;
-            inv.status = inv.amountPaid >= inv.amountDue ? "PAID" : "PARTIALLY_PAID";
-
-            DB.save("invoices", allInvoices);
-            console.log("[SUCCESS] Payment applied:", payment);
-            window.location.reload();
-        } catch (err) {
-            console.error("[ERROR] Failed to apply payment:", err);
-            alert("Payment failed. Check console for details.");
-        }
-    };
-
-    // --- STEP 7: Handle missing customer ---
-    if (!customer) {
-        console.warn("[WARN] Customer not found for ID:", customerId);
-        return <div className="container mt-5">Customer not found.</div>;
+  /* ------------------------------------------------------
+     STEP 2: Load customer
+     ------------------------------------------------------ */
+  const [customer] = useState(() => {
+    try {
+      const found = DB.findOne("customers", customerId);
+      console.log("[DEBUG] Found customer:", found);
+      return found;
+    } catch (err) {
+      console.error("[ERROR] Failed to load customer:", err);
+      return undefined;
     }
+  });
 
-    // --- STEP 8: Render UI ---
+  /* ------------------------------------------------------
+     STEP 3: State for policies, invoices, payments
+     ------------------------------------------------------ */
+  const [policies, setPolicies] = useState([]);
+  const [invoices, setInvoices] = useState([]);
 
-   return (
-        <div className="container mt-4">
-            <Link to="/" className="btn btn-link p-0 mb-3 text-decoration-none">← Back to Dashboard</Link>
-            
-            <div className="row">
-                <div className="col-md-4">
-                    {/* Profile Card */}
-                    <div className="card shadow-sm mb-4">
-                        <div className="card-header bg-primary text-white">Customer Info</div>
-                        <div className="card-body">
-                            <h3>{customer.first_name} {customer.last_name}</h3>
-                            <p className="text-muted mb-0">Age: {customer.age}</p>
-                            <small className="text-muted">ID: {customer.id}</small>
-                        </div>
-                    </div>
+  /* ------------------------------------------------------
+     STEP 4: Modal visibility
+     ------------------------------------------------------ */
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-                    {/* Add Policy Form */}
-                    <div className="card shadow-sm">
-                        <div className="card-header bg-dark text-white">Add Policy / Fee</div>
-                        <div className="card-body">
-                            <form onSubmit={addPolicy}>
-                                <input className="form-control mb-2" placeholder="Type (e.g. Auto)" value={policyForm.type} onChange={e => setPolicyForm({...policyForm, type: e.target.value})} required />
-                                <div className="row g-2 mb-3">
-                                    <div className="col"><input type="number" className="form-control" placeholder="Premium" value={policyForm.premium} onChange={e => setPolicyForm({...policyForm, premium: e.target.value})} /></div>
-                                    <div className="col"><input type="number" className="form-control" placeholder="Agency Fee" value={policyForm.fee} onChange={e => setPolicyForm({...policyForm, fee: e.target.value})} /></div>
-                                </div>
-                                <button className="btn btn-success w-100">Add to Profile</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
+  /* ------------------------------------------------------
+     STEP 5: Modal forms
+     ------------------------------------------------------ */
+  const [policyForm, setPolicyForm] = useState({
+    type: "",
+    premium: "",
+    fee: "",
+  });
 
-                <div className="col-md-8">
-                    {/* Tabs */}
-                    <ul className="nav nav-tabs">
-                        <li className="nav-item"><button className="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-policies">Policies</button></li>
-                        <li className="nav-item"><button className="nav-link" data-bs-toggle="tab" data-bs-target="#tab-invoices">Invoices</button></li>
-                    </ul>
+  const [invoiceForm, setInvoiceForm] = useState({
+    policyId: "",
+    invoiceType: "",
+  });
 
-                    <div className="tab-content bg-white p-3 border border-top-0 rounded-bottom shadow-sm">
-                        {/* Policy Tab */}
-                        <div className="tab-pane fade show active" id="tab-policies">
-                            <ul className="list-group list-group-flush">
-                                {policies.map(p => (
-                                    <li key={p.policyId} className="list-group-item d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <strong>{p.type}</strong><br/>
-                                            <small className="text-muted">Prem: {formatMoney(p.premium)} | Fee: {formatMoney(p.agencyFee)}</small>
-                                        </div>
-                                        <span className="badge bg-secondary">#{p.policyId}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
+  const [paymentForm, setPaymentForm] = useState({
+    invoiceId: "",
+    amount: "",
+  });
 
-                        {/* Invoice Tab (Accordion) */}
-                        <div className="tab-pane fade" id="tab-invoices">
-                            <div className="accordion" id="invAcc">
-                                {policies.map(p => {
-                                    const policyInvoices = invoices.filter(inv => inv.policyId === p.policyId);
-                                    return (
-                                        <div className="accordion-item" key={p.policyId}>
-                                            <h2 className="accordion-header">
-                                                <button className="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target={`#collapse-${p.policyId}`}>
-                                                    {p.type} • {policyInvoices.length} Invoices
-                                                </button>
-                                            </h2>
-                                            <div id={`collapse-${p.policyId}`} className="accordion-collapse collapse" data-bs-parent="#invAcc">
-                                                <div className="accordion-body">
-                                                    {/* Create Invoice UI */}
-                                                    <div className="bg-light p-3 rounded mb-3">
-                                                        <h6>New Invoice</h6>
-                                                        <div className="input-group">
-                                                            <select className="form-select" id={`type-${p.policyId}`}>
-                                                                <option value="PREMIUM_PLUS_AGENCY_FEE">Premium + Fee</option>
-                                                                <option value="PREMIUM_ONLY">Premium Only</option>
-                                                                <option value="AGENCY_FEE_ONLY">Fee Only</option>
-                                                            </select>
-                                                            <button className="btn btn-primary" onClick={() => generateInvoice(p)}>Create</button>
-                                                        </div>
-                                                    </div>
+  /* ------------------------------------------------------
+     STEP 6: Load policies + invoices
+     ------------------------------------------------------ */
+  useEffect(() => {
+    try {
+      console.log("[INFO] Loading policies + invoices for:", customerId);
 
-                                                    {/* Existing Invoices List */}
-                                                    {policyInvoices.map(inv => (
-                                                        <div className="card mb-3 border-info" key={inv.invoiceId}>
-                                                            <div className="card-header d-flex justify-content-between">
-                                                                <span>Invoice #INV-{inv.invoiceId}</span>
-                                                                <span className={`badge ${inv.status === 'PAID' ? 'bg-success' : 'bg-warning text-dark'}`}>{inv.status}</span>
-                                                            </div>
-                                                            <div className="card-body">
-                                                                <p className="mb-1"><strong>Due: {formatMoney(inv.amountDue)}</strong></p>
-                                                                <p className="small text-muted mb-3">Paid: {formatMoney(inv.amountPaid)} | Remaining: {formatMoney(inv.amountDue - inv.amountPaid)}</p>
-                                                                
-                                                                {inv.status !== 'PAID' && (
-                                                                    <div className="input-group input-group-sm mb-3">
-                                                                        <input type="number" className="form-control" placeholder="Pay amount" id={`pay-val-${inv.invoiceId}`} />
-                                                                        <button className="btn btn-outline-primary" onClick={() => {
-                                                                            const val = parseFloat(document.getElementById(`pay-val-${inv.invoiceId}`).value);
+      const allPolicies = DB.get("policies").filter(
+        (p) => p.customerId === customerId
+      );
 
-                                                                        }}>Submit Payment</button>
-                                                                    </div>
-                                                                )}
+      const allInvoices = DB.get("invoices").filter((inv) =>
+        allPolicies.some((p) => p.policyId === inv.policyId)
+      );
 
-                                                                {/* Payment History */}
-                                                                {inv.payments.length > 0 && (
-                                                                    <div className="mt-2">
-                                                                        <small className="fw-bold">Payment History:</small>
-                                                                        {inv.payments.map(pmt => <div key={pmt.paymentId} className="small text-success">• {formatMoney(pmt.amount)} on {pmt.datePaid}</div>)}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+      setPolicies(allPolicies);
+      setInvoices(allInvoices);
+
+      console.log("[DEBUG] Policies:", allPolicies);
+      console.log("[DEBUG] Invoices:", allInvoices);
+    } catch (err) {
+      console.error("[ERROR] Failed loading data:", err);
+    }
+  }, [customerId]);
+
+  /* ------------------------------------------------------
+     STEP 7: Add Policy
+     ------------------------------------------------------ */
+  const addPolicy = (e) => {
+    e.preventDefault();
+    console.log("[INFO] Adding policy...");
+
+    try {
+      const newPolicy = {
+        policyId: Date.now(),
+        customerId,
+        type: policyForm.type,
+        premium: parseFloat(policyForm.premium) || 0,
+        agencyFee: parseFloat(policyForm.fee) || 0,
+        dateAdded: new Date().toISOString(),
+      };
+
+      const updated = [...DB.get("policies"), newPolicy];
+      DB.save("policies", updated);
+
+      setPolicies(updated.filter((p) => p.customerId === customerId));
+      setPolicyForm({ type: "", premium: "", fee: "" });
+      setShowPolicyModal(false);
+
+      console.log("[SUCCESS] Policy added:", newPolicy);
+    } catch (err) {
+      console.error("[ERROR] Failed to add policy:", err);
+      alert("Error adding policy.");
+    }
+  };
+
+  /* ------------------------------------------------------
+     STEP 8: Generate Invoice
+     ------------------------------------------------------ */
+  const generateInvoice = (e) => {
+    e.preventDefault();
+    console.log("[INFO] Generating invoice...");
+
+    try {
+      const policy = policies.find(
+        (p) => p.policyId === parseInt(invoiceForm.policyId)
+      );
+      if (!policy) throw new Error("Policy not found.");
+
+      const invType = invoiceForm.invoiceType;
+
+      const lineItems = [];
+      if (invType.includes("PREMIUM") && policy.premium > 0)
+        lineItems.push({ label: "Premium", amount: policy.premium });
+
+      if (invType.includes("FEE") && policy.agencyFee > 0)
+        lineItems.push({ label: "Agency Fee", amount: policy.agencyFee });
+
+      if (lineItems.length === 0) {
+        alert("Nothing to bill for this selection.");
+        return;
+      }
+
+      const newInvoice = {
+        invoiceId: Date.now(),
+        policyId: policy.policyId,
+        invoiceType: invType,
+        lineItems,
+        amountDue: lineItems.reduce((sum, item) => sum + item.amount, 0),
+        amountPaid: 0,
+        status: "OPEN",
+        dateGenerated: new Date().toLocaleDateString(),
+        payments: [],
+      };
+
+      const updated = [...DB.get("invoices"), newInvoice];
+      DB.save("invoices", updated);
+
+      setInvoices(updated.filter((i) => i.policyId === policy.policyId));
+      setInvoiceForm({ policyId: "", invoiceType: "" });
+      setShowInvoiceModal(false);
+
+      console.log("[SUCCESS] Invoice generated:", newInvoice);
+    } catch (err) {
+      console.error("[ERROR] Failed to generate invoice:", err);
+      alert("Error generating invoice.");
+    }
+  };
+
+  /* ------------------------------------------------------
+     STEP 9: Apply Payment
+     ------------------------------------------------------ */
+  const applyPayment = (e) => {
+    e.preventDefault();
+    console.log("[INFO] Applying payment...");
+
+    try {
+      const invoiceId = parseInt(paymentForm.invoiceId);
+      const amount = parseFloat(paymentForm.amount);
+
+      const allInvoices = DB.get("invoices");
+      const inv = allInvoices.find((i) => i.invoiceId === invoiceId);
+
+      if (!inv) throw new Error("Invoice not found.");
+
+      const payment = {
+        paymentId: Date.now(),
+        invoiceId,
+        amount,
+        datePaid: new Date().toLocaleDateString(),
+      };
+
+      inv.payments.push(payment);
+      inv.amountPaid += amount;
+      inv.status =
+        inv.amountPaid >= inv.amountDue ? "PAID" : "PARTIALLY_PAID";
+
+      DB.save("invoices", allInvoices);
+
+      setInvoices(allInvoices.filter((i) => i.policyId === inv.policyId));
+      setPaymentForm({ invoiceId: "", amount: "" });
+      setShowPaymentModal(false);
+
+      console.log("[SUCCESS] Payment applied:", payment);
+    } catch (err) {
+      console.error("[ERROR] Failed to apply payment:", err);
+      alert("Error applying payment.");
+    }
+  };
+
+  /* ------------------------------------------------------
+     STEP 10: Missing customer
+     ------------------------------------------------------ */
+  if (!customer) {
+    return (
+      <div className="container mt-5">
+        <h3>Customer not found.</h3>
+      </div>
     );
+  }
+
+  /* ------------------------------------------------------
+     STEP 11: Render UI
+     ------------------------------------------------------ */
+  return (
+    <div className="container mt-5">
+
+      <h1 className="mb-4 text-brand">
+        {customer.first_name} {customer.last_name}
+      </h1>
+
+      {/* ACTION BUTTONS */}
+      <div className="d-flex gap-3 mb-4">
+        <button className="btn btn-brand" onClick={() => setShowPolicyModal(true)}>
+          + Add Policy
+        </button>
+
+        <button className="btn btn-warning" onClick={() => setShowInvoiceModal(true)}>
+          + Generate Invoice
+        </button>
+
+        <button className="btn btn-info text-white" onClick={() => setShowPaymentModal(true)}>
+          + Apply Payment
+        </button>
+      </div>
+
+      {/* POLICIES */}
+      <h3 className="mt-4">Policies</h3>
+      <ul className="list-group mb-4">
+        {policies.map((p) => (
+          <li key={p.policyId} className="list-group-item">
+            <strong>{p.type}</strong> — Premium: {formatMoney(p.premium)} — Fee:{" "}
+            {formatMoney(p.agencyFee)}
+          </li>
+        ))}
+      </ul>
+
+      {/* INVOICES */}
+      <h3 className="mt-4">Invoices</h3>
+      <ul className="list-group mb-4">
+        {invoices.map((inv) => (
+          <li key={inv.invoiceId} className="list-group-item">
+            <strong>{inv.invoiceType}</strong> — Due: {formatMoney(inv.amountDue)} — Paid:{" "}
+            {formatMoney(inv.amountPaid)} — Status: {inv.status}
+          </li>
+        ))}
+      </ul>
+
+      {/* ------------------------------------------------------
+         MODALS
+         ------------------------------------------------------ */}
+
+      {/* POLICY MODAL */}
+      {showPolicyModal && (
+        <div className="modal fade show d-block" tabIndex="-1">
+          <div className="modal-dialog">
+            <div className="modal-content">
+
+              <div className="modal-header">
+                <h5 className="modal-title">Add Policy</h5>
+                <button className="btn-close" onClick={() => setShowPolicyModal(false)}></button>
+              </div>
+
+              <form onSubmit={addPolicy}>
+                <div className="modal-body">
+
+                  <input
+                    className="form-control mb-3"
+                    placeholder="Policy Type"
+                    value={policyForm.type}
+                    onChange={(e) => setPolicyForm({ ...policyForm, type: e.target.value })}
+                    required
+                  />
+
+                  <input
+                    type="number"
+                    className="form-control mb-3"
+                    placeholder="Premium"
+                    value={policyForm.premium}
+                    onChange={(e) => setPolicyForm({ ...policyForm, premium: e.target.value })}
+                    required
+                  />
+
+                  <input
+                    type="number"
+                    className="form-control mb-3"
+                    placeholder="Agency Fee"
+                    value={policyForm.fee}
+                    onChange={(e) => setPolicyForm({ ...policyForm, fee: e.target.value })}
+                    required
+                  />
+
+                </div>
+
+                <div className="modal-footer">
+                  <button className="btn btn-secondary" onClick={() => setShowPolicyModal(false)}>
+                    Cancel
+                  </button>
+                  <button className="btn btn-brand">Save Policy</button>
+                </div>
+              </form>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* INVOICE MODAL */}
+      {showInvoiceModal && (
+        <div className="modal fade show d-block" tabIndex="-1">
+          <div className="modal-dialog">
+            <div className="modal-content">
+
+              <div className="modal-header">
+                <h5 className="modal-title">Generate Invoice</h5>
+                <button className="btn-close" onClick={() => setShowInvoiceModal(false)}></button>
+              </div>
+
+              <form onSubmit={generateInvoice}>
+                <div className="modal-body">
+
+                  <select
+                    className="form-control mb-3"
+                    value={invoiceForm.policyId}
+                    onChange={(e) => setInvoiceForm({ ...invoiceForm, policyId: e.target.value })}
+                    required
+                  >
+                    <option value="">Select Policy</option>
+                    {policies.map((p) => (
+                      <option key={p.policyId} value={p.policyId}>
+                        {p.type}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    className="form-control mb-3"
+                    value={invoiceForm.invoiceType}
+                    onChange={(e) => setInvoiceForm({ ...invoiceForm, invoiceType: e.target.value })}
+                    required
+                  >
+                    <option value="">Select Invoice Type</option>
+                    <option value="PREMIUM">Premium Only</option>
+                    <option value="FEE">Agency Fee Only</option>
+                    <option value="PREMIUM+FEE">Premium + Fee</option>
+                  </select>
+
+                </div>
+
+                <div className="modal-footer">
+                  <button className="btn btn-secondary" onClick={() => setShowInvoiceModal(false)}>
+                    Cancel
+                  </button>
+                  <button className="btn btn-warning">Generate Invoice</button>
+                </div>
+              </form>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PAYMENT MODAL */}
+      {showPaymentModal && (
+        <div className="modal fade show d-block" tabIndex="-1">
+          <div className="modal-dialog">
+            <div className="modal-content">
+
+              <div className="modal-header">
+                <h5 className="modal-title">Apply Payment</h5>
+                <button className="btn-close" onClick={() => setShowPaymentModal(false)}></button>
+              </div>
+
+              <form onSubmit={applyPayment}>
+                <div className="modal-body">
+
+                  <select
+                    className="form-control mb-3"
+                    value={paymentForm.invoiceId}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, invoiceId: e.target.value })}
+                    required
+                  >
+                    <option value="">Select Invoice</option>
+                    {invoices.map((inv) => (
+                      <option key={inv.invoiceId} value={inv.invoiceId}>
+                        {inv.invoiceType} — Due {formatMoney(inv.amountDue)}
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="number"
+                    className="form-control mb-3"
+                    placeholder="Payment Amount"
+                    value={paymentForm.amount}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                    required
+                  />
+
+                </div>
+
+                <div className="modal-footer">
+                  <button className="btn btn-secondary" onClick={() => setShowPaymentModal(false)}>
+                    Cancel
+                  </button>
+                  <button className="btn btn-info text-white">Apply Payment</button>
+                </div>
+              </form>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
 };
 
 export default CustomerDetail;
