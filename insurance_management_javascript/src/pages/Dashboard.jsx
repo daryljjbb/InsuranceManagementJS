@@ -58,7 +58,7 @@ const Dashboard = () => {
                     />
                 </div>
                 <div className="col-md-2">
-                    <button className="btn btn-primary w-100">Register</button>
+                    <button className="btn" style={{ backgroundColor: 'var(--brand-blue)' }}>Register</button>
                 </div>
             </form>
 
