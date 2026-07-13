@@ -231,21 +231,47 @@ const CustomerDetail = () => {
                     <div className="bg-light p-3 rounded mb-3">
                       <h6>New Invoice</h6>
                       <div className="input-group">
+                        {/* Dynamic Invoice Type Dropdown */}
                         <select className="form-select" id={`type-${p.policyId}`}>
-                          <option value="PREMIUM_PLUS_AGENCY_FEE">Premium + Fee</option>
-                          <option value="PREMIUM_ONLY">Premium Only</option>
-                          <option value="AGENCY_FEE_ONLY">Fee Only</option>
+                        {/* Premium + Fee */}
+                        {!(policyInvoices.some(inv => inv.invoiceType.includes("PREMIUM")) &&
+                            policyInvoices.some(inv => inv.invoiceType.includes("FEE")) &&
+                            policyInvoices.every(inv => inv.status === "PAID")) && (
+                            <option value="PREMIUM_PLUS_AGENCY_FEE">Premium + Fee</option>
+                        )}
+
+                        {/* Premium Only */}
+                        {!policyInvoices.some(inv => inv.invoiceType.includes("PREMIUM") && inv.status === "PAID") && (
+                            <option value="PREMIUM_ONLY">Premium Only</option>
+                        )}
+
+                        {/* Fee Only */}
+                        {!policyInvoices.some(inv => inv.invoiceType.includes("FEE") && inv.status === "PAID") && (
+                            <option value="AGENCY_FEE_ONLY">Fee Only</option>
+                        )}
+
+                        {/* No billable items */}
+                        {policyInvoices.some(inv => inv.status === "PAID") &&
+                        policyInvoices.every(inv => inv.status === "PAID") && (
+                            <option value="" disabled>No billable items remaining</option>
+                        )}
                         </select>
+
                         <button
-                          className="btn btn-primary"
-                          onClick={() => {
+                        className="btn btn-primary"
+                        disabled={
+                            policyInvoices.some(inv => inv.status === "PAID") &&
+                            policyInvoices.every(inv => inv.status === "PAID")
+                        }
+                        onClick={() => {
                             const select = document.getElementById(`type-${p.policyId}`);
-                            const type = select ? select.value : "PREMIUM_PLUS_AGENCY_FEE";
-                            generateInvoice(p, type);
-                          }}
+                            const type = select ? select.value : "";
+                            if (type) generateInvoice(p, type);
+                        }}
                         >
-                          Create
+                        Create
                         </button>
+
                       </div>
                     </div>
 
