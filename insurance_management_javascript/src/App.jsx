@@ -15,6 +15,10 @@ function App() {
           <img src={reactLogo} className="framework" alt="React logo" />
           <img src={viteLogo} className="vite" alt="Vite logo" />
         </div>
+        <button className="btn" style={{ backgroundColor: 'var(--brand-blue)' }}>
+          Custom Button
+        </button>
+
         <div>
           <h1>Get started</h1>
           <p>
