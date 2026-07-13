@@ -1,194 +1,214 @@
-import React, { useState, useEffect } from 'react';
-import { DB } from '../services/db';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { DB } from "../services/db";
+import { Link } from "react-router-dom";
 
 /*
 ===========================================================
-DASHBOARD COMPONENT
+DASHBOARD
 -----------------------------------------------------------
-This page handles:
-- Displaying all customers
-- Adding new customers
-- Saving to localStorage (via DB service)
-- Using Bootstrap + custom theme colors
-- Heavy debugging + error trapping
+This page ONLY handles:
+- Listing customers
+- Creating customers (modal)
+- Deleting customers (optional)
 ===========================================================
 */
 
 const Dashboard = () => {
+  const [customers, setCustomers] = useState([]);
 
-    /* ------------------------------------------------------
-       STATE: customers array + form fields
-       ------------------------------------------------------ */
-    const [customers, setCustomers] = useState([]);
-    const [form, setForm] = useState({ first: '', last: '', age: '' });
+  // Modal visibility
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
 
-    /* ------------------------------------------------------
-       EFFECT: Load customers on page load
-       ------------------------------------------------------ */
-    useEffect(() => {
-        try {
-            console.log("Loading customers from DB...");
-            const data = DB.get("customers") || [];
-            console.log("Loaded customers:", data);
-            setCustomers(data);
-        } catch (err) {
-            console.error("ERROR loading customers:", err);
-        }
-    }, []);
+  // Customer form
+  const [customerForm, setCustomerForm] = useState({
+    first: "",
+    last: "",
+    age: "",
+  });
 
-    /* ------------------------------------------------------
-       HANDLER: Add new customer
-       ------------------------------------------------------ */
-    const handleAdd = (e) => {
-        e.preventDefault();
+  /* ------------------------------------------------------
+     LOAD CUSTOMERS
+     ------------------------------------------------------ */
+  useEffect(() => {
+    try {
+      console.log("Loading customers...");
+      const data = DB.get("customers") || [];
+      console.log("Loaded:", data);
+      setCustomers(data);
+    } catch (err) {
+      console.error("ERROR loading customers:", err);
+    }
+  }, []);
 
-        console.log("Attempting to add new customer...");
+  /* ------------------------------------------------------
+     CREATE CUSTOMER
+     ------------------------------------------------------ */
+  const handleCreateCustomer = (e) => {
+    e.preventDefault();
+    console.log("Creating customer...");
 
-        try {
-            // Basic validation
-            if (!form.first || !form.last || !form.age) {
-                console.warn("Form validation failed:", form);
-                alert("Please fill out all fields.");
-                return;
-            }
+    try {
+      const newCust = {
+        id: Date.now(),
+        first_name: customerForm.first.trim(),
+        last_name: customerForm.last.trim(),
+        age: parseInt(customerForm.age),
+        createdAt: new Date().toISOString(),
+      };
 
-            const newCust = {
-                id: Date.now(), // simple unique ID
-                first_name: form.first.trim(),
-                last_name: form.last.trim(),
-                age: parseInt(form.age),
-                createdAt: new Date().toISOString()
-            };
+      console.log("New customer:", newCust);
 
-            console.log("New customer object:", newCust);
+      const updated = [...customers, newCust];
+      DB.save("customers", updated);
+      setCustomers(updated);
 
-            // OOP-style array update
-            const updated = [...customers, newCust];
+      // Reset + close modal
+      setCustomerForm({ first: "", last: "", age: "" });
+      setShowCustomerModal(false);
+    } catch (err) {
+      console.error("ERROR creating customer:", err);
+      alert("Something went wrong.");
+    }
+  };
 
-            // Save to DB
-            DB.save("customers", updated);
-            console.log("Customer saved to DB.");
+  /* ------------------------------------------------------
+     DELETE CUSTOMER
+     ------------------------------------------------------ */
+  const handleDeleteCustomer = (id) => {
+    console.log("Deleting customer:", id);
 
-            // Update UI
-            setCustomers(updated);
-            setForm({ first: '', last: '', age: '' });
+    try {
+      const updated = customers.filter((c) => c.id !== id);
+      DB.save("customers", updated);
+      setCustomers(updated);
+    } catch (err) {
+      console.error("ERROR deleting customer:", err);
+      alert("Could not delete customer.");
+    }
+  };
 
-        } catch (err) {
-            console.error("ERROR adding customer:", err);
-            alert("Something went wrong while adding the customer.");
-        }
-    };
+  /* ------------------------------------------------------
+     RENDER UI
+     ------------------------------------------------------ */
+  return (
+    <div className="container mt-5">
 
-    /* ------------------------------------------------------
-       RENDER UI
-       ------------------------------------------------------ */
-    return (
-        <div className="container mt-5">
+      <h1 className="mb-4 text-brand">Customer Dashboard</h1>
 
-            {/* PAGE TITLE */}
-            <h1 className="mb-4 text-brand">Customer Directory</h1>
+      {/* CREATE CUSTOMER BUTTON */}
+      <button className="btn btn-brand mb-4" onClick={() => setShowCustomerModal(true)}>
+        + Create Customer
+      </button>
 
-            {/* FORM CARD */}
-            <form className="card card-brand p-4 shadow-sm mb-4" onSubmit={handleAdd}>
-                <h4 className="mb-3">Register New Customer</h4>
+      {/* CUSTOMER TABLE */}
+      <div className="table-responsive bg-white shadow-sm rounded">
+        <table className="table table-hover mb-0">
+          <thead className="table-dark">
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Age</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
 
-                <div className="row g-3">
+          <tbody>
+            {customers.length === 0 && (
+              <tr>
+                <td colSpan="4" className="text-center py-3 text-muted">
+                  No customers found.
+                </td>
+              </tr>
+            )}
 
-                    {/* FIRST NAME */}
-                    <div className="col-md-4">
-                        <input
-                            className="form-control"
-                            placeholder="First Name"
-                            value={form.first}
-                            onChange={e => {
-                                console.log("First name changed:", e.target.value);
-                                setForm({ ...form, first: e.target.value });
-                            }}
-                            required
-                        />
-                    </div>
+            {customers.map((c) => (
+              <tr key={c.id}>
+                <td>#{c.id}</td>
+                <td>{c.first_name} {c.last_name}</td>
+                <td>{c.age}</td>
+                <td className="d-flex gap-2">
 
-                    {/* LAST NAME */}
-                    <div className="col-md-4">
-                        <input
-                            className="form-control"
-                            placeholder="Last Name"
-                            value={form.last}
-                            onChange={e => {
-                                console.log("Last name changed:", e.target.value);
-                                setForm({ ...form, last: e.target.value });
-                            }}
-                            required
-                        />
-                    </div>
+                  {/* PROFILE BUTTON */}
+                  <Link
+                    to={`/customer/${c.id}`}
+                    className="btn btn-sm btn-info text-white"
+                  >
+                    Profile
+                  </Link>
 
-                    {/* AGE */}
-                    <div className="col-md-2">
-                        <input
-                            type="number"
-                            className="form-control"
-                            placeholder="Age"
-                            value={form.age}
-                            onChange={e => {
-                                console.log("Age changed:", e.target.value);
-                                setForm({ ...form, age: e.target.value });
-                            }}
-                            required
-                        />
-                    </div>
+                  {/* DELETE BUTTON */}
+                  <button
+                    className="btn btn-sm btn-danger"
+                    onClick={() => handleDeleteCustomer(c.id)}
+                  >
+                    Delete
+                  </button>
 
-                    {/* SUBMIT BUTTON */}
-                    <div className="col-md-2 d-grid">
-                        <button className="btn btn-brand">
-                            Register
-                        </button>
-                    </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ------------------------------------------------------
+         CREATE CUSTOMER MODAL
+         ------------------------------------------------------ */}
+      {showCustomerModal && (
+        <div className="modal fade show d-block" tabIndex="-1">
+          <div className="modal-dialog">
+            <div className="modal-content">
+
+              <div className="modal-header">
+                <h5 className="modal-title">Create Customer</h5>
+                <button className="btn-close" onClick={() => setShowCustomerModal(false)}></button>
+              </div>
+
+              <form onSubmit={handleCreateCustomer}>
+                <div className="modal-body">
+
+                  <input
+                    className="form-control mb-3"
+                    placeholder="First Name"
+                    value={customerForm.first}
+                    onChange={(e) => setCustomerForm({ ...customerForm, first: e.target.value })}
+                    required
+                  />
+
+                  <input
+                    className="form-control mb-3"
+                    placeholder="Last Name"
+                    value={customerForm.last}
+                    onChange={(e) => setCustomerForm({ ...customerForm, last: e.target.value })}
+                    required
+                  />
+
+                  <input
+                    type="number"
+                    className="form-control mb-3"
+                    placeholder="Age"
+                    value={customerForm.age}
+                    onChange={(e) => setCustomerForm({ ...customerForm, age: e.target.value })}
+                    required
+                  />
+
                 </div>
-            </form>
 
-            {/* CUSTOMER TABLE */}
-            <div className="table-responsive bg-white shadow-sm rounded">
-                <table className="table table-hover mb-0">
-                    <thead className="table-dark">
-                        <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>Age</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
+                <div className="modal-footer">
+                  <button className="btn btn-secondary" onClick={() => setShowCustomerModal(false)}>
+                    Cancel
+                  </button>
+                  <button className="btn btn-brand">Save Customer</button>
+                </div>
+              </form>
 
-                    <tbody>
-                        {customers.length === 0 && (
-                            <tr>
-                                <td colSpan="4" className="text-center py-3 text-muted">
-                                    No customers found.
-                                </td>
-                            </tr>
-                        )}
-
-                        {customers.map(c => (
-                            <tr key={c.id}>
-                                <td>#{c.id}</td>
-                                <td>{c.first_name} {c.last_name}</td>
-                                <td>{c.age}</td>
-                                <td>
-                                    <Link
-                                        to={`/customer/${c.id}`}
-                                        className="btn btn-sm btn-info text-white"
-                                    >
-                                        Profile
-                                    </Link>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
             </div>
-
+          </div>
         </div>
-    );
+      )}
+
+    </div>
+  );
 };
 
 export default Dashboard;
